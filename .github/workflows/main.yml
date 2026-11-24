@@ -1,0 +1,40 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Распаковать zip с проектом
+        run: |
+          ZIP=$(ls *.zip | head -n1)
+          echo "Беру архив: $ZIP"
+          mkdir -p _proj
+          unzip -q -o "$ZIP" -d _proj
+          SETTINGS=$(find _proj -maxdepth 3 -name settings.gradle.kts | head -n1)
+          if [ -z "$SETTINGS" ]; then echo "settings.gradle.kts не найден в архиве"; exit 1; fi
+          echo "PROJECT_DIR=$(cd "$(dirname "$SETTINGS")" && pwd)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Собрать APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OwnAI-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
